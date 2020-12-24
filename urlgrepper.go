@@ -81,6 +81,7 @@ func main() {
 	nc.RetryWaitMin = 1 * time.Second
 	nc.RetryWaitMax = 2 * time.Second
 	nc.RetryMax = 3
+	nc.Logger = nil
 	
 
 	//body := bytes.NewReader([]byte(""))
