@@ -26,9 +26,9 @@ Usage of urlgrepper:
   -o string
         output result to a file
   -t int
-        goroutine number to be utilized (kinda like thread) (in development) (default 10)
+        goroutine number to be utilized (kinda like thread) (default 10)
   -tx string
-        specify extact domain if it is different with source URL requested (in development)
+        specify extact domain if it is different with source URL requested
   -u string
         single source where url will be taken
   -ul string
@@ -43,7 +43,6 @@ Usage of urlgrepper:
 ### Example
 ```sh
 $ go run urlgrepper.go -u https://tokopedia.com
-2020/12/22 05:32:09 [DEBUG] GET https://tokopedia.com
 gql.tokopedia.com
 hub.tokopedia.com
 www.tokopedia.com
