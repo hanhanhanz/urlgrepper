@@ -12,6 +12,7 @@ import "strings"
 import "sync"
 import "net/http"
 import "crypto/tls"
+import "syscall"
 //import "errors"
 //import "net"
 //import "github.com/gijsbers/go-pcre"
@@ -260,6 +261,8 @@ func cleanandstore2(c conf, clean []string) {
 }
 
 
+
+
 func main() {
 	
 	//flag declaration
@@ -268,9 +271,9 @@ func main() {
 	flag.StringVar(&(c.Urls),"ul","","source where url will be taken in a file")
 	flag.StringVar(&(c.Mode),"m","domain","choose what to extract (domain,url)")
 	flag.StringVar(&(c.Outname),"o","","output result to a file")
-	flag.IntVar(&(c.Thread),"t",0,"goroutine number to be utilized (kinda like thread) (in development)")
+	flag.IntVar(&(c.Thread),"t",0,"goroutine number to be utilized (kinda like thread)")
 	flag.StringVar(&(c.Xtension),"x","","xtension to extract (only work for URL mode)")
-	flag.StringVar(&(c.Toxtract),"tx","","specify extract domain if it is different with source URL requested (in development)")
+	flag.StringVar(&(c.Toxtract),"tx","","specify extract domain if it is different with source URL requested")
 	flag.Parse()
 
 	///building client
@@ -286,9 +289,34 @@ func main() {
 	nc.Logger = nil
 	nc.HTTPClient = &http.Client{Transport: customTransport}
 	
-	
+	//url to slice
 	var seeds = []string{}
 	seeds = urltoslice(c.Url,c.Urls)
+
+	//preparing thread
+    if c.Thread == 0 {
+		c.Thread = len(seeds) 
+	}
+
+	//increase file descriptors
+	var rLimit syscall.Rlimit
+	err := syscall.Getrlimit(syscall.RLIMIT_NOFILE, &rLimit)
+	if err != nil {
+        fmt.Println("Error Getting Rlimit ", err)
+    }
+    if rLimit.Cur < uint64(c.Thread*3) {
+    	rLimit.Cur = uint64(c.Thread*3)
+    	err = syscall.Setrlimit(syscall.RLIMIT_NOFILE, &rLimit)
+    	if err != nil {
+        	fmt.Println("Error Setting Rlimit ", err)
+    	}
+    }
+    err = syscall.Getrlimit(syscall.RLIMIT_NOFILE, &rLimit)
+    if err != nil {
+       	fmt.Println("Error Getting Rlimit ", err)
+    }
+    //fmt.Println(rLimit)
+
 	
 	//prepare file for -o
 	if c.Outname != "" {
@@ -302,15 +330,9 @@ func main() {
     }
 	
 	
- 	
     
     //final result slice declaration
     clean := []string{}
-
-    //preparing thread
-    if c.Thread == 0 {
-		c.Thread = len(seeds) 
-	}
 
 	//channel declaration
 	body2 := make(chan string, len(seeds))
@@ -324,7 +346,7 @@ func main() {
 
     var wg sync.WaitGroup
  	wg.Add(len(seeds))
-//=======================================================================================================================================================================================================================
+//goroutine1=======================================================================================================================================================================================================================
 	for _,seed := range seeds {
 		//building request
 		guard1 <- struct{}{}
@@ -349,7 +371,7 @@ func main() {
 		}(seed)
 		
 	}
-//=======================================================================================================================================================================================================================
+//goroutine2=======================================================================================================================================================================================================================
 
 	wg.Wait()
 	wg.Add(len(seeds))
@@ -370,7 +392,7 @@ func main() {
 	close(body3)
 	
 
-//=======================================================================================================================================================================================================================				
+//goroutine3(optional)=======================================================================================================================================================================================================================				
 	if c.Toxtract != "" {
 		for i := 0; i < len(seeds); i++ {
 	
