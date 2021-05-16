@@ -1,7 +1,7 @@
 # urlgrepper
 
 
-Tools for grepping URL or subdomain with Golang Concurrency utilized. 
+Tools for grepping URL or subdomain from webpage with Golang Concurrency utilized. 
 
 
 ### Requirement
