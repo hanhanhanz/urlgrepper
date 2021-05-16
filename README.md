@@ -1,7 +1,7 @@
 # urlgrepper
 
 
-Tools for grepping URL or subdomain with Golang Concurrency utilized
+Tools for grepping URL or subdomain with Golang Concurrency utilized. 
 
 
 ### Requirement
@@ -26,15 +26,17 @@ Usage of urlgrepper:
   -o string
         output result to a file
   -t int
-        goroutine number to be utilized (kinda like thread) (default 10)
+        goroutine number to be utilized (kinda like thread)
   -tx string
-        specify extact domain if it is different with source URL requested
+        specify extract domain if it is different with source URL requested
   -u string
         single source where url will be taken
   -ul string
         source where url will be taken in a file
+  -v    enable verbose mode
   -x string
         xtension to extract (only work for URL mode)
+
 
 ```
 
@@ -43,10 +45,14 @@ Usage of urlgrepper:
 ### Example
 ```sh
 $ go run urlgrepper.go -u https://tokopedia.com
+iteration 0, total domain : 14
+iteration 1, total domain : 14
+iteration 2, total domain : 18
+iteration 3, total domain : 18
+final result :
 gql.tokopedia.com
 hub.tokopedia.com
 www.tokopedia.com
-m.tokopedia.com
 accounts.tokopedia.com
 chat.tokopedia.com
 seller.tokopedia.com
@@ -57,6 +63,11 @@ tiket.tokopedia.com
 pay.tokopedia.com
 gw.tokopedia.com
 goldmerchant.tokopedia.com
+mojito.tokopedia.com
+m.tokopedia.com
+api.tokopedia.com
+js.tokopedia.com
+kamus.tokopedia.com
 
 ```
 
