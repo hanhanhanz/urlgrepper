@@ -30,6 +30,7 @@ type conf struct {
 	Toxtract string
 	Verbose bool
 	Outfile *(os.File)
+	Rdirect int
 }
 
 type error interface {
@@ -108,7 +109,7 @@ func urltoslice(url string, urls string) []string {
 }
 
 
-func myrequest(nc *retryablehttp.Client, seed string)  (error,string) {
+func myrequest(c conf, nc *retryablehttp.Client, seed string)  (error,string) {
 	//fmt.Println("doMyRequest")
 	body2 := ""
 
@@ -133,27 +134,62 @@ func myrequest(nc *retryablehttp.Client, seed string)  (error,string) {
 			//temp = strings.Replace(u.Path,"/","",1)
 		}
 
-		req, err := retryablehttp.NewRequest("GET",domain, nil)
+		var resp *(http.Response)
+		cnt := 0
+		for true {// check for redirect
+			req, err := retryablehttp.NewRequest("GET",domain, nil)
 
-		if err != nil {
-	    	//wg.Done()
-	    	log.Println("[-] Generate NewRequest failed : ",err)
-			return err,body2
-	    }
-		req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/42.0.2311.135 Safari/537.36 Edge/12.246")
-		
-		//send request
-		//fmt.Printf(domain + " ")
-		resp, err := nc.Do(req)
-		//resp, err = http.Get(domain)
-		//fmt.Println(resp.StatusCode)
-		if err != nil {
-			//wg.Done()
-			log.Println("[-] request failure : ", err)
-			return err,body2
+			if err != nil {
+		    	//wg.Done()
+		    	log.Println("[-] Generate NewRequest failed : ",err)
+				return err,body2
+		    }
+			req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/42.0.2311.135 Safari/537.36 Edge/12.246")
+			
+			//send request
+			//fmt.Printf(domain + " ")
+			resp, err = nc.Do(req)
+			if err != nil {
+				//wg.Done()
+				log.Println("[-] request failure1 : ", err)
+				return err,body2
+			}
+			//resp, err = http.Get(domain)
+			//fmt.Println(resp.StatusCode)
+			u2 := resp.Request.URL
+			//test
+			//unparse,err = url.QueryUnescape(u2)
+			//u,err = url.Parse(u2)
+			domain2 := u2.Scheme + "://" + u2.Host + u2.Path
+			//fmt.Println(domain)
+			//fmt.Println(u2)
+			if domain != domain2 {
+				req, err = retryablehttp.NewRequest("GET",domain2, nil)
+				if err != nil {
+			    	//wg.Done()
+			    	log.Println("[-] Generate NewRequest failed : ",err)
+					return err,body2
+			    }
+
+			    resp, err = nc.Do(req)
+				if err != nil {
+					//wg.Done()
+					log.Println("[-] request failure2 : ", err)
+					return err,body2
+				}
+				domain = domain2	
+			} else { //check if there is redirect
+				break
+			}
+			cnt += 1	
+			if cnt == c.Rdirect {
+				break //break if max redirect achive
+			}
 		}
 		
+		
 
+		
 		//reading request
 		body, err := ioutil.ReadAll(resp.Body)
 		if err != nil {
@@ -228,7 +264,7 @@ func urlprocess(body2 string, seed string, c conf, wg *sync.WaitGroup) ([]string
 			//parse to obtain domain/subdomain specified in -u/-ul
 			
 			tem := strings.ReplaceAll(parseed.Host,".","\\.") 	
-							
+			
 			//pat2 := regexp.MustCompile(fmt.Sprintf(`(^|^[^:]+:\/\/|[^\.]+\.)`+tem))
 			pat2 := regexp.MustCompile(fmt.Sprintf(`(\*\.)?([\w\d]+\.)+[\w\d]?`+tem))
 			//pat2 := regexp.MustCompile(fmt.Sprintf(`(^|^[^:]+:\/\/|[^\.]+\.)w3\.com`))
@@ -371,7 +407,7 @@ func play(c conf, seeds []string ,nc *retryablehttp.Client) (out []string) {
 					//fmt.Println("doplaylv1")
 					
 					//fmt.Println()
-					err,data := myrequest(nc,seed)
+					err,data := myrequest(c,nc,seed)
 					if err != nil {
 						if strings.Contains(err.Error(), "i/o timeout") {
 			    			data = ""
@@ -459,6 +495,7 @@ func main() {
 	flag.StringVar(&(c.Xtension),"x","","xtension to extract (only work for URL mode)")
 	flag.StringVar(&(c.Toxtract),"tx","","specify extract domain if it is different with source URL requested")
 	flag.BoolVar(&(c.Verbose),"v",false,"enable verbose mode")
+	flag.IntVar(&(c.Rdirect),"r",2,"max times of redirect (minimum 0)")
 	flag.Parse()
 	
 
@@ -474,14 +511,22 @@ func main() {
 	customTransport.TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
 	customTransport.IdleConnTimeout = time.Second * 10
 	customTransport.DialContext = (&net.Dialer{Timeout: 10 * time.Second, KeepAlive: 10 * time.Second}).DialContext
+
+
 	//default retry conf
 	var nc = retryablehttp.NewClient()
-	nc.RetryWaitMin = 7 * time.Second
-	nc.RetryWaitMax = 10 * time.Second
-	nc.RetryMax = 1
-	nc.Logger = nil
-	nc.HTTPClient = &http.Client{Transport: customTransport}
-	
+		nc.RetryWaitMin = 7 * time.Second
+		nc.RetryWaitMax = 10 * time.Second
+		nc.RetryMax = 1
+		nc.Logger = nil
+		nc.HTTPClient = &http.Client{
+    		//CheckRedirect: func(req *http.Request, via []*http.Request) error {
+      		//	fmt.Println("LOL")
+      		//	return http.ErrUseLastResponse
+      		Transport: customTransport,
+  		} 
+
+
 	//url to slice
 	var seeds = []string{}
 	seeds = urltoslice(c.Url,c.Urls)
@@ -491,6 +536,11 @@ func main() {
 		c.Thread = len(seeds)
 		//fmt.Println(seed)
 		//fmt.Println(c.Thread)
+	}
+
+	//set redirect to 2 if stdin less than 2
+	if c.Rdirect < 0 {
+		c.Rdirect = 2
 	}
 
 	//increase file descriptors
@@ -532,7 +582,7 @@ func main() {
 
 	//resp, err := nc.Do("https://google.com")
 	//len(resp)
-	time.Sleep(time.Second * 4)
+	
 	var master = []string{}
 	for _,sd := range seeds { 
 		
@@ -540,14 +590,6 @@ func main() {
 		seed = append(seed,sd)
 		
 		dodol:=play(c,seed,nc)//HERE
-		
-		
-		/*if len(master) > 1  {
-			c.Thread = len(master) 
-		} else {
-			c.Thread = 1
-		}*/
-
 
 		master = append(master,dodol...)
 		master = removeDuplicateValues(master)
@@ -567,19 +609,19 @@ func main() {
 
 
 		new = append(new,play(c,master,nc)...)	
-		fmt.Println(fmt.Sprintf("iteration 1, total domain : %d",len(removeDuplicateValues(master))))
+		//fmt.Println(fmt.Sprintf("iteration 1, total domain : %d",len(removeDuplicateValues(master))))
 
 		t := 0
 		for true {
 			
 			master = removeDuplicateValues(append(master,new...))
-			if t != 0 {
+			//if t != 0 {
 				fmt.Println(fmt.Sprintf("iteration %d, total domain : %d",t+1,len(master)))	
-			}
+			//}
 			
-
+			
 			if (compareslice(master,new) == false || t < 2 ) && (len(new) != 0) { //new value found
-		
+				
 				//sp := fmt.Sprintf("iteration %d with %d domain",t + 2,len(master))
 				//fmt.Println(sp)
 				var new2 = []string{}
@@ -608,7 +650,7 @@ func main() {
 		master = removeDuplicateValues(master)
 		//sp := fmt.Sprintf("iteration " + string(t) + " with " + string(len(master)) + " domain")
 		//fmt.Println(sp)
-		fmt.Println("final result :")
+		fmt.Println(fmt.Sprintf("final result : %d domain",len(master)))
 		for _,i := range master { 
 			fmt.Println(i)
 		}
