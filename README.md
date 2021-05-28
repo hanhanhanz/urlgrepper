@@ -25,6 +25,8 @@ Usage of urlgrepper:
         choose what to extract (domain,url) (default "domain")
   -o string
         output result to a file
+  -r int
+        max times of redirect (minimum 0) (default 2)
   -t int
         goroutine number to be utilized (kinda like thread)
   -tx string
